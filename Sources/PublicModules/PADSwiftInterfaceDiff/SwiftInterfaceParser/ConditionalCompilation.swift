@@ -148,12 +148,23 @@ extension ConditionalCompilation {
         return "\(conditionPrefix)\(conditions.joined(separator: " && "))\n\(text)\n#endif"
     }
 
-    /// The element's description without the leading condition attributes
+    /// The element's description without the leading condition attributes,
+    /// conditional attributes (see ``conditionalAttribute(_:condition:)``) are rendered as blocks
     private static func descriptionWithoutConditions(of element: any SwiftInterfaceElement) -> String {
         element.description
             .components(separatedBy: "\n")
             .drop { condition(of: $0) != nil }
+            .map(renderedConditionalAttribute)
             .joined(separator: "\n")
+    }
+
+    /// `#if $X @attribute #endif` → `#if $X`, `@attribute`, `#endif` on separate lines
+    private static func renderedConditionalAttribute(_ line: String) -> String {
+        guard line.hasPrefix(conditionPrefix), line.hasSuffix(attributeSuffix),
+              let attributeStart = line.range(of: " @") else { return line }
+        let condition = line[line.index(line.startIndex, offsetBy: conditionPrefix.count)..<attributeStart.lowerBound]
+        let attribute = line[attributeStart.upperBound...].dropLast(attributeSuffix.count)
+        return "\(conditionPrefix)\(condition)\n@\(attribute)\n#endif"
     }
 
     /// Mirrors `recursiveDescription()` with the children's conditions rendered as blocks
