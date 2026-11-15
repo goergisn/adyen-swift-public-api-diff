@@ -6,7 +6,7 @@
 
 import Foundation
 
-class SwiftInterfaceExtension: SwiftInterfaceElement {
+class SwiftInterfaceExtension: SwiftInterfaceConformingElement {
 
     /// e.g. @discardableResult, @MainActor, @objc, @_spi(...), ...
     var attributes: [String]
@@ -36,6 +36,10 @@ class SwiftInterfaceExtension: SwiftInterfaceElement {
     }
 
     var consolidatableName: String { extendedType }
+
+    var conformingTypeName: String { extendedType }
+
+    var conformanceGenericWhereClause: String? { genericWhereClauseDescription }
 
     func description(incl tokens: Set<SwiftInterfaceElementDescriptionToken>) -> String {
         compileDescription(incl: tokens)
@@ -84,8 +88,9 @@ private extension SwiftInterfaceExtension {
         if modifiers.isEmpty && !attributes.isEmpty { description.append("\n") }
         description.append("extension", with: modifiers.isEmpty ? "" : " ")
         description.append(extendedType, with: " ")
-        description.append(inheritance?.sorted().joined(separator: ", "), with: "") { ": \($0)" }
+        description.append(inheritanceClauseDescription, with: "") { ": \($0)" }
         description.append(genericWhereClauseDescription, with: " ")
+        description.append(conformanceExtensionsDescription(incl: tokens), with: "")
         return description
     }
 }
