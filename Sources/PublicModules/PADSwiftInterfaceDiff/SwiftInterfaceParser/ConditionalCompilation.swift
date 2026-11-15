@@ -158,12 +158,10 @@ extension ConditionalCompilation {
             .joined(separator: "\n")
     }
 
-    /// `#if $X @attribute #endif` → `@attribute // #if $X`
-    ///
-    /// The attribute stays on its declaration (wrapping it in a block would read as if the declaration followed the `#endif`)
+    /// `#if $X @attribute #endif` → `#if $X`, `@attribute`, `#endif` on separate lines (as declared in the interface)
     private static func renderedConditionalAttribute(_ line: String) -> String {
         guard let (attribute, condition) = splitConditionalAttribute(line) else { return line }
-        return "\(attribute) // \(conditionPrefix)\(condition)"
+        return "\(conditionPrefix)\(condition)\n\(attribute)\n#endif"
     }
 
     /// Splits a conditional attribute (see ``conditionalAttribute(_:condition:)``) into the attribute and its condition
