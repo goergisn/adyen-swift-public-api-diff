@@ -41,7 +41,7 @@ Suggested labels: `correctness`, `coverage`, `report`, `performance`, `existing-
 
 These describe changes that already exist. Open one issue per item and link the PR, so the release notes can be generated from closed issues.
 
-PR order: A1 is on `main`. A2, A3, A4 and A8 depend only on `main`. A5 → A6 → A7 are stacked. `projected-main` merges all of them, including the C-items below (131 unit + 2 reference tests pass). Paste-ready PR descriptions per branch are in [upstream-prs.md](upstream-prs.md).
+For upstream PRs, the A- and C-items are bundled into 5 stacked PRs: `xcode-27-interfaces` (A1, A4) → `normalize-declaration-comparison` (A2, A3) → `macros-and-pairing` (A8, C2, C5) → `extension-merging-and-availability` (A5–A7) → `conditional-compilation` (C9–C11). The last one has the same code as `projected-main` (131 unit + 2 reference tests pass). Paste-ready PR descriptions are in [upstream-prs.md](upstream-prs.md). The per-item branches named below are superseded by the bundles but kept for reference.
 
 ### A1: Update SwiftSyntax to 604 and normalize module selectors
 
