@@ -334,4 +334,104 @@ struct ConditionalCompilationTests {
         #expect(change.listOfChanges == ["Added attribute `#if $NonexhaustiveAttribute @nonexhaustive #endif`"])
         #expect(change.conditions.isEmpty)
     }
+
+    // MARK: - Rendering
+
+    @Test func additionRendersConditionsAsBlocks() throws {
+        let changes = changes(
+            from: "",
+            to: """
+            #if compiler(>=5.3) && $TildeSendable
+            public struct Shape: ~Swift.Sendable {
+              #if !$Embedded
+              public func describe() -> Swift.String
+              public func area() -> Swift.Double
+              #endif
+              public var size: Swift.Int
+            }
+            #endif
+            """
+        )
+
+        let change = try #require(changes.first)
+        #expect(changes.count == 1, "\(changes)")
+        #expect(change.changeType == .addition(description: """
+        #if compiler(>=5.3) && $TildeSendable
+        public struct Shape: ~Swift.Sendable {
+          public var size: Swift.Int
+          #if !$Embedded
+          public func area() -> Swift.Double
+          public func describe() -> Swift.String
+          #endif
+        }
+        #endif
+        """))
+    }
+
+    @Test func memberChangeIsWrappedInTheConditionsOfItsType() throws {
+        let changes = changes(
+            from: """
+            #if $TildeSendable
+            public struct Canvas: ~Swift.Sendable {}
+            #else
+            public struct Canvas {}
+            #endif
+            """,
+            to: """
+            #if $TildeSendable
+            public struct Canvas: ~Swift.Sendable {}
+            #else
+            public struct Canvas {
+              public func legacyDraw()
+            }
+            #endif
+            """
+        )
+
+        let change = try #require(changes.first)
+        #expect(changes.count == 1, "\(changes)")
+        #expect(change.changeType == .addition(description: """
+        #if !$TildeSendable
+        public func legacyDraw() -> Swift.Void
+        #endif
+        """))
+    }
+
+    @Test func gateChangeShowsTheConditionOnlyOnTheNewSide() throws {
+        let changes = changes(
+            from: "public func borrowed() -> Swift.Int",
+            to: """
+            #if $LifetimeDependence
+            public func borrowed() -> Swift.Int
+            #endif
+            """
+        )
+
+        let change = try #require(changes.first)
+        #expect(change.changeType == .modification(
+            oldDescription: "public func borrowed() -> Swift.Int",
+            newDescription: "#if $LifetimeDependence\npublic func borrowed() -> Swift.Int\n#endif"
+        ))
+    }
+
+    @Test func conditionalConformanceIsRenderedAsWrappedExtension() throws {
+        let changes = changes(
+            from: "",
+            to: """
+            public struct Shape {}
+            #if $LifetimeDependence
+            extension Example.Shape: Example.Provider {}
+            #endif
+            """
+        )
+
+        let change = try #require(changes.first)
+        #expect(change.changeType == .addition(description: """
+        public struct Shape
+
+        #if $LifetimeDependence
+        extension Shape: Example.Provider
+        #endif
+        """))
+    }
 }
