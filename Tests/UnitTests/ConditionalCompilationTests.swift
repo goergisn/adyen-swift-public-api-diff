@@ -434,4 +434,24 @@ struct ConditionalCompilationTests {
         #endif
         """))
     }
+
+    @Test func conditionalAttributeIsRenderedAsBlock() throws {
+        let changes = changes(
+            from: "",
+            to: """
+            #if compiler(>=5.3) && $NonexhaustiveAttribute
+            @nonexhaustive
+            #endif
+            public enum Kind {}
+            """
+        )
+
+        let change = try #require(changes.first)
+        #expect(change.changeType == .addition(description: """
+        #if compiler(>=5.3) && $NonexhaustiveAttribute
+        @nonexhaustive
+        #endif
+        public enum Kind
+        """))
+    }
 }
