@@ -54,7 +54,10 @@ enum AvailabilityInheritance {
         }
 
         guard !inherited.isEmpty else { return own }
-        return sortedAvailability(inherited.filter { !own.contains($0) } + own)
+        // `#if` conditions (see `ConditionalCompilation`) stay first
+        let conditions = own.prefix { ConditionalCompilation.condition(of: $0) != nil }
+        let attributes = sortedAvailability(inherited.filter { !own.contains($0) } + own.dropFirst(conditions.count))
+        return conditions + attributes
     }
 
     /// Separates a conformance from its availability annotation, see ``conformance(_:declaredWith:on:)``
