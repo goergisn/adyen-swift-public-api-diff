@@ -18,7 +18,7 @@ Unit and reference tests pass on every branch of the stack (131 unit + 2 referen
 
 **Opening the PRs:** open PR 1 against Adyen `main`. The later PRs can only target the previous branch once it exists in the Adyen repo, so either open them one at a time after the previous one is merged, or open them against Adyen `main` with a note that they include the previous PR's commits ("Depends on #…; review only the last N commits").
 
-**Superseded branches:** the earlier per-item branches (`swift-syntax-604`, `normalize-api-diff-ordering`, `ignore-internal-parameter-names`, `normalize-overlay-module-selectors`, `pair-extensions-by-conformance`, `parse-macro-declarations`, `order-independent-extension-merging`, `conformance-availability`, `describe-availability-changes`, `combine-standalone-extensions`) contain the same work without the conflict resolutions; they are kept for reference.
+**Superseded branches:** the earlier per-item branches were deleted. `normalize-api-diff-ordering` (A2) is kept until the PoC in apple-sdk-api-watch, which pins it, is moved to another branch.
 
 ---
 
