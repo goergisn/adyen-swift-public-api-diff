@@ -421,7 +421,7 @@ struct ConditionalCompilationTests {
         """))
     }
 
-    @Test func conditionalAttributeIsRenderedWithItsCondition() throws {
+    @Test func conditionalAttributeIsRenderedAsDeclared() throws {
         let changes = changes(
             from: "",
             to: """
@@ -434,7 +434,9 @@ struct ConditionalCompilationTests {
 
         let change = try #require(changes.first)
         #expect(change.changeType == .addition(description: """
-        @nonexhaustive // #if compiler(>=5.3) && $NonexhaustiveAttribute
+        #if compiler(>=5.3) && $NonexhaustiveAttribute
+        @nonexhaustive
+        #endif
         public enum Kind
         """))
     }
