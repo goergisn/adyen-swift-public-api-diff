@@ -57,36 +57,44 @@ struct SwiftInterfaceAnalyzer: SwiftInterfaceAnalyzing {
         }
 
         let exactMatches = Set(rhs.children.map { $0.recursiveDescription() })
-        changes += lhs.children.flatMap { lhsElement in
+        // Elements of `rhs` that are an exact counterpart of an element of `lhs` are accounted for
+        // and must not be paired with another element as well
+        let exactCounterparts = Set(lhs.children.map { $0.recursiveDescription() })
+        let unmatchedElements = lhs.children.filter { !exactMatches.contains($0.recursiveDescription()) }
+        let availableElements = rhs.children.filter { !exactCounterparts.contains($0.recursiveDescription()) }
+
+        // Overloads can share a description or diffable signature (e.g. `guide(_:)`),
+        // so (non-extension) elements are paired with their most similar counterpart
+        let pairs = pairElements(
+            unmatchedElements.filter { !($0 is SwiftInterfaceExtension) },
+            with: availableElements.filter { !($0 is SwiftInterfaceExtension) }
+        )
+
+        for lhsElement in unmatchedElements {
 
             // Trying to find a matching element
-
-            // First checking if we found an exact match based on the recursive description
+            //
+            // Elements with an exact match based on the recursive description are skipped above
             // as we don't want to match a non-change with a change
             //
             // This is especially important for extensions where the description might
             // be the same for a lot of different extensions but the body might be completely different
-            if exactMatches.contains(lhsElement.recursiveDescription()) {
-                return [IndependentSwiftInterfaceChange]()
+
+            let match: (any SwiftInterfaceElement)? = if lhsElement is SwiftInterfaceExtension {
+                // First checking if we found a match based on the description
+                // For extensions, we need special handling to find the best match based on child similarity
+                // (Extensions can be split or merged, so several extensions can be compared with the same one)
+                findBestExtensionMatch(for: lhsElement, among: rhs.children.filter { $0.description == lhsElement.description })
+                    // ... then losening the criteria to find a comparable element
+                    ?? rhs.children.first(where: { $0.isDiffable(with: lhsElement) })
+            } else {
+                pairs[ObjectIdentifier(lhsElement)]
             }
 
-            // First checking if we found a match based on the description
-            // For extensions, we need special handling to find the best match based on child similarity
-            if lhsElement is SwiftInterfaceExtension {
-                let allDescriptionMatches = rhs.children.filter { $0.description == lhsElement.description }
-                if let bestMatch = findBestExtensionMatch(for: lhsElement, among: allDescriptionMatches) {
-                    return Self.recursiveCompare(element: lhsElement, to: bestMatch, oldFirst: oldFirst)
-                }
-                // No good match found, will fall through to isDiffable check or report as removal/addition
-            } else if let descriptionMatch = rhs.children.first(where: { $0.description == lhsElement.description }) {
-                // so we check if the children changed
-                return Self.recursiveCompare(element: lhsElement, to: descriptionMatch, oldFirst: oldFirst)
-            }
-
-            // ... then losening the criteria to find a comparable element
-            if let rhsChildForName = rhs.children.first(where: { $0.isDiffable(with: lhsElement) }) {
+            if let match {
                 // We found a comparable element so we check if the children changed
-                return Self.recursiveCompare(element: lhsElement, to: rhsChildForName, oldFirst: oldFirst)
+                changes += Self.recursiveCompare(element: lhsElement, to: match, oldFirst: oldFirst)
+                continue
             }
 
             // No matching element was found so either it was removed or added
@@ -94,13 +102,13 @@ struct SwiftInterfaceAnalyzer: SwiftInterfaceAnalyzing {
                 .removal(lhsElement.recursiveDescription()) :
                 .addition(lhsElement.recursiveDescription())
 
-            return [
+            changes.append(
                 .from(
                     changeType: changeType,
                     element: lhsElement,
                     oldFirst: oldFirst
                 )
-            ]
+            )
         }
 
         return changes
@@ -115,16 +123,76 @@ struct SwiftInterfaceAnalyzer: SwiftInterfaceAnalyzing {
             .from(
                 changeType: .removal(lhs.description),
                 element: lhs,
-                oldFirst: oldFirst
+                oldFirst: oldFirst,
+                counterpart: rhs
             ),
             .from(
                 changeType: .addition(rhs.recursiveDescription()),
                 element: rhs,
-                oldFirst: oldFirst
+                oldFirst: oldFirst,
+                counterpart: lhs
             )
         ]
     }
     
+    /// Pairs each element of `lhsElements` with at most one comparable element of `rhsElements`
+    ///
+    /// Elements with the same description are paired first, then elements that only differ in their attributes
+    /// or modifiers (e.g. availability), then other comparable elements (see `isDiffable(with:)`).
+    /// Within each group the most similar pairs (fewest differences, most matching children) are formed first,
+    /// so the result does not depend on the order of declarations. Remaining ties keep the declaration order.
+    private static func pairElements(
+        _ lhsElements: [any SwiftInterfaceElement],
+        with rhsElements: [any SwiftInterfaceElement]
+    ) -> [ObjectIdentifier: any SwiftInterfaceElement] {
+
+        var candidatePairs = [(lhsIndex: Int, rhsIndex: Int, rank: [Int])]()
+        for (lhsIndex, lhsElement) in lhsElements.enumerated() {
+            let lhsDescription = lhsElement.description
+            let lhsSignature = lhsElement.description(incl: [])
+            for (rhsIndex, rhsElement) in rhsElements.enumerated() {
+                let group: Int
+                if rhsElement.description == lhsDescription {
+                    group = 0
+                } else if !rhsElement.isDiffable(with: lhsElement) {
+                    continue
+                } else if rhsElement.description(incl: []) == lhsSignature {
+                    group = 1
+                } else {
+                    group = 2
+                }
+                let rank = [group] + similarityScore(of: lhsElement, to: rhsElement) + [lhsIndex, rhsIndex]
+                candidatePairs.append((lhsIndex, rhsIndex, rank))
+            }
+        }
+
+        var pairedLhsIndices = Set<Int>()
+        var pairedRhsIndices = Set<Int>()
+        var pairs = [ObjectIdentifier: any SwiftInterfaceElement]()
+        for candidatePair in candidatePairs.sorted(by: { $0.rank.lexicographicallyPrecedes($1.rank) }) {
+            guard !pairedLhsIndices.contains(candidatePair.lhsIndex),
+                  !pairedRhsIndices.contains(candidatePair.rhsIndex) else { continue }
+            pairedLhsIndices.insert(candidatePair.lhsIndex)
+            pairedRhsIndices.insert(candidatePair.rhsIndex)
+            pairs[ObjectIdentifier(lhsElements[candidatePair.lhsIndex])] = rhsElements[candidatePair.rhsIndex]
+        }
+        return pairs
+    }
+
+    /// Fewer differences first, then more matching children
+    private static func similarityScore(
+        of lhsElement: any SwiftInterfaceElement,
+        to candidate: any SwiftInterfaceElement
+    ) -> [Int] {
+        let matchingChildren = lhsElement.children.filter { lhsChild in
+            candidate.children.contains { $0.isDiffable(with: lhsChild) }
+        }
+        return [
+            lhsElement.differences(to: candidate).count,
+            -matchingChildren.count
+        ]
+    }
+
     /// Finds the best matching extension from a list of candidates based on child similarity
     /// Returns nil if no good match is found
     private static func findBestExtensionMatch(
