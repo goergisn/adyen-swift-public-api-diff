@@ -153,6 +153,7 @@ struct ConditionalCompilationTests {
         let root = parse("""
         public struct Shape {}
         #if $LifetimeDependence
+        @available(iOS 27.0, *)
         extension Example.Shape: Example.Provider {
           public func borrowed()
         }
@@ -161,7 +162,8 @@ struct ConditionalCompilationTests {
 
         let shape = try #require(root.children.first as? SwiftInterfaceStruct)
         #expect(shape.children.map(\.conditions) == [["$LifetimeDependence"]])
-        #expect(shape.inheritance == ["Example.Provider /* #if $LifetimeDependence */"])
+        #expect(shape.children.compactMap { ($0 as? SwiftInterfaceFunction)?.attributes } == [["#if $LifetimeDependence", "@available(iOS 27.0, *)"]])
+        #expect(shape.inheritance == ["Example.Provider /* #if $LifetimeDependence\n@available(iOS 27.0, *) */"])
     }
 
     @Test func macrosAreTagged() {
