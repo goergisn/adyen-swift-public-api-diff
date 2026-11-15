@@ -6,25 +6,25 @@ Priority proposal: **correctness and coverage first**, then report quality, then
 
 | Prio | ID | Title | Kind | State |
 |---|---|---|---|---|
-| — | A1 | Update SwiftSyntax to 604 and normalize module selectors | existing | on fork `main` |
-| — | A2 | Normalize availability ordering, detect reordered parameters | existing | branch, pushed |
-| — | A3 | Ignore internal parameter names | existing | branch, pushed |
-| — | A4 | Resolve module selectors of transitively imported modules | existing | branch, pushed |
-| — | A5 | Make extension merging independent of declaration order | existing | branch, origin outdated |
-| — | A6 | Keep and render availability of conformances declared in extensions | existing | branch, pushed (on A5) |
-| — | A7 | Describe availability changes per platform | existing | branch, pushed (on A6) |
-| — | A8 | Pair standalone extensions by conformance and members | existing | branch, pushed |
-| P1 | C1 | Duplicate declarations from `#if` feature-check clauses | correctness | superseded by C10 (branch `evaluate-conditional-compilation` obsolete) |
-| P1 | C2 | Macro declarations are not parsed | coverage | branch `parse-macro-declarations`, pushed |
+| — | A1 | Update SwiftSyntax to 604 and normalize module selectors | existing | done, PR branch `xcode-27-interfaces` |
+| — | A2 | Normalize availability ordering, detect reordered parameters | existing | done, PR branch `normalize-declaration-comparison` |
+| — | A3 | Ignore internal parameter names | existing | done, PR branch `normalize-declaration-comparison` |
+| — | A4 | Resolve module selectors of transitively imported modules | existing | done, PR branch `xcode-27-interfaces` |
+| — | A5 | Make extension merging independent of declaration order | existing | done, PR branch `extension-merging-and-availability` |
+| — | A6 | Keep and render availability of conformances declared in extensions | existing | done, PR branch `extension-merging-and-availability` |
+| — | A7 | Describe availability changes per platform | existing | done, PR branch `extension-merging-and-availability` |
+| — | A8 | Pair standalone extensions by conformance and members | existing | done, PR branch `macros-and-pairing` |
+| P1 | C1 | Duplicate declarations from `#if` feature-check clauses | correctness | superseded by C10 (branch deleted) |
+| P1 | C2 | Macro declarations are not parsed | coverage | done, PR branch `macros-and-pairing` |
 | P1 | C3 | Consolidator drops paired changes without differences | correctness | new |
 | P2 | C4 | Import and `@_exported import` changes are not reported | coverage | new |
-| P2 | C5 | Description fallback pairs with already-matched elements | correctness | branch `parse-macro-declarations`, pushed |
+| P2 | C5 | Description fallback pairs with already-matched elements | correctness | done, PR branch `macros-and-pairing` |
 | P3 | C6 | Operator and `precedencegroup` declarations are not parsed | coverage | new |
 | P3 | C7 | `deinit` declarations are not parsed | coverage | new |
-| P2 | C10 | Report changes in all `#if` branches, tagged with their conditions (replaces C1's evaluation) | coverage | implemented on `combine-standalone-extensions`, pushed |
-| P1 | C11 | Extension members falsely reported as removed when a type is split into `#if` variants | correctness | implemented on `combine-standalone-extensions`, pushed |
+| P2 | C10 | Report changes in all `#if` branches, tagged with their conditions (replaces C1's evaluation) | coverage | done, PR branch `conditional-compilation` |
+| P1 | C11 | Extension members falsely reported as removed when a type is split into `#if` variants | correctness | done, PR branch `conditional-compilation` |
 | P2 | C8 | Reference tests ignore extra output lines | test correctness | new |
-| P2 | C9 | Merged standalone extensions report false additions | correctness | branch `combine-standalone-extensions`, pushed (on A6) |
+| P2 | C9 | Merged standalone extensions report false additions | correctness | done, PR branch `conditional-compilation` |
 | P1 | D1 | Document the comparison behavior | docs | new |
 | P2 | R1 | Classify changes as breaking / non-breaking | report | new |
 | P2 | R2 | Summarize bulk availability changes | report | new |
@@ -41,7 +41,7 @@ Suggested labels: `correctness`, `coverage`, `report`, `performance`, `existing-
 
 These describe changes that already exist. Open one issue per item and link the PR, so the release notes can be generated from closed issues.
 
-For upstream PRs, the A- and C-items are bundled into 5 stacked PRs: `xcode-27-interfaces` (A1, A4) → `normalize-declaration-comparison` (A2, A3) → `macros-and-pairing` (A8, C2, C5) → `extension-merging-and-availability` (A5–A7) → `conditional-compilation` (C9–C11). The last one has the same code as `projected-main` (131 unit + 2 reference tests pass). Paste-ready PR descriptions are in [upstream-prs.md](upstream-prs.md). The per-item branches named below were deleted after bundling, except `normalize-api-diff-ordering`, which the PoC pins.
+For upstream PRs, the A- and C-items are bundled into 5 stacked PRs: `xcode-27-interfaces` (A1, A4) → `normalize-declaration-comparison` (A2, A3) → `macros-and-pairing` (A8, C2, C5) → `extension-merging-and-availability` (A5–A7) → `conditional-compilation` (C9–C11). The last one has the same code as `projected-main` (131 unit + 2 reference tests pass). Paste-ready PR descriptions are in [upstream-prs.md](upstream-prs.md). The per-item branches named below were deleted after bundling; the PoC follows `projected-main`.
 
 ### A1: Update SwiftSyntax to 604 and normalize module selectors
 
@@ -56,7 +56,7 @@ Xcode 27 interfaces spell types with module selectors (`Swift::String`) instead 
 
 ### A2: Normalize availability ordering and detect reordered parameters
 
-**Branch:** `normalize-api-diff-ordering` (0683c34, pushed, pinned by the PoC).
+**Branch:** `normalize-api-diff-ordering` (0683c34, deleted after bundling).
 
 The same `@available` platforms listed in a different order were reported as a change. Parameters that moved position weren't reported.
 

@@ -18,7 +18,7 @@ Unit and reference tests pass on every branch of the stack (131 unit + 2 referen
 
 **Opening the PRs:** open PR 1 against Adyen `main`. The later PRs can only target the previous branch once it exists in the Adyen repo, so either open them one at a time after the previous one is merged, or open them against Adyen `main` with a note that they include the previous PR's commits ("Depends on #…; review only the last N commits").
 
-**Superseded branches:** the earlier per-item branches were deleted. `normalize-api-diff-ordering` (A2) is kept until the PoC in apple-sdk-api-watch, which pins it, is moved to another branch.
+**Superseded branches:** the earlier per-item branches were deleted after bundling. The PoC in apple-sdk-api-watch follows `projected-main`.
 
 ---
 
