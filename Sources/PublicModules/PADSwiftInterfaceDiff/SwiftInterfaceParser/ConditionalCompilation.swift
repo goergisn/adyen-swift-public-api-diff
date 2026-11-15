@@ -116,3 +116,80 @@ extension SwiftInterfaceElement {
         return conditions.reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
     }
 }
+
+// MARK: - Rendering
+
+extension ConditionalCompilation {
+
+    /// The description of an element for the output, with its conditions as `#if … #endif` blocks
+    /// instead of the attributes used for comparing (see ``attribute(for:)``)
+    ///
+    /// The element is wrapped in all of its conditions (including the ones of its enclosing declarations),
+    /// children declared under the same conditions share one block.
+    ///
+    /// ```swift
+    /// #if compiler(>=5.3) && $TildeSendable
+    /// public struct Shape: ~Swift.Sendable {
+    ///   #if !$Embedded
+    ///   public func area() -> Swift.Double
+    ///   public func describe() -> Swift.String
+    ///   #endif
+    /// }
+    /// #endif
+    /// ```
+    static func renderedDescription(of element: any SwiftInterfaceElement, recursive: Bool) -> String {
+        let description = recursive ? renderedRecursiveDescription(of: element) : descriptionWithoutConditions(of: element)
+        return wrapped(description, in: element.allConditions)
+    }
+
+    /// Wraps the text in an `#if` block (conditions combined with `&&`)
+    static func wrapped(_ text: String, in conditions: [String]) -> String {
+        guard !conditions.isEmpty else { return text }
+        return "\(conditionPrefix)\(conditions.joined(separator: " && "))\n\(text)\n#endif"
+    }
+
+    /// The element's description without the leading condition attributes
+    private static func descriptionWithoutConditions(of element: any SwiftInterfaceElement) -> String {
+        element.description
+            .components(separatedBy: "\n")
+            .drop { condition(of: $0) != nil }
+            .joined(separator: "\n")
+    }
+
+    /// Mirrors `recursiveDescription()` with the children's conditions rendered as blocks
+    private static func renderedRecursiveDescription(of element: any SwiftInterfaceElement) -> String {
+        var description = descriptionWithoutConditions(of: element)
+        // Conformance extensions (see `conformanceExtensionsDescription`) follow the type's body
+        let conformanceExtensions = (element as? any SwiftInterfaceConformingElement)?
+            .conformanceExtensionsDescription(incl: Set(SwiftInterfaceElementDescriptionToken.allCases))
+        if let conformanceExtensions, description.hasSuffix(conformanceExtensions) {
+            description.removeLast(conformanceExtensions.count)
+        }
+
+        if !element.children.isEmpty {
+            description.append(" {")
+            let children = element.children
+                .map { (conditions: $0.conditions, description: renderedRecursiveDescription(of: $0)) }
+                .sorted { ($0.conditions.joined(separator: "\n"), $0.description) < ($1.conditions.joined(separator: "\n"), $1.description) }
+
+            var index = children.startIndex
+            while index < children.endIndex {
+                let conditions = children[index].conditions
+                let group = children[index...].prefix { $0.conditions == conditions }
+                let block = wrapped(group.map(\.description).joined(separator: "\n"), in: conditions)
+                description.append("\n\(indented(block))")
+                index += group.count
+            }
+            description.append("\n}")
+        }
+
+        if let conformanceExtensions {
+            description.append(conformanceExtensions)
+        }
+        return description
+    }
+
+    private static func indented(_ text: String) -> String {
+        text.components(separatedBy: "\n").map { "  \($0)" }.joined(separator: "\n")
+    }
+}
