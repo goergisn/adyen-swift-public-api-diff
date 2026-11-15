@@ -62,16 +62,24 @@ enum AvailabilityInheritance {
 
     /// Annotates a conformance with the availability of the extension declaring it,
     /// when that availability differs from the extended type's own.
+    /// Conditions of `#if` clauses the extension is declared in (and the type isn't) are kept as well.
     ///
     /// e.g. `@available(iOS 27.2, *) extension E: Swift.Hashable {}` on `@available(iOS 27.0, *) enum E`
     /// → `Swift.Hashable /* @available(iOS 27.2, *) */`
     static func conformance(_ conformance: String, declaredWith extensionAttributes: [String], on typeAttributes: [String]) -> String {
-        let extensionAvailability = extensionAttributes.filter { $0.hasPrefix("@available(") }
-        guard !extensionAvailability.isEmpty,
-              Set(extensionAvailability) != Set(typeAttributes.filter { $0.hasPrefix("@available(") }) else {
-            return conformance
+        let typeConditions = Set(ConditionalCompilation.conditions(of: typeAttributes))
+        let conditions = ConditionalCompilation.conditions(of: extensionAttributes)
+            .filter { !typeConditions.contains($0) }
+            .map(ConditionalCompilation.attribute(for:))
+
+        var extensionAvailability = extensionAttributes.filter { $0.hasPrefix("@available(") }
+        if Set(extensionAvailability) == Set(typeAttributes.filter { $0.hasPrefix("@available(") }) {
+            extensionAvailability = []
         }
-        return "\(conformance)\(conformanceAvailabilitySeparator)\(extensionAvailability.joined(separator: "\n")) */"
+
+        let annotation = conditions + extensionAvailability
+        guard !annotation.isEmpty else { return conformance }
+        return "\(conformance)\(conformanceAvailabilitySeparator)\(annotation.joined(separator: "\n")) */"
     }
 
     /// Splits an inheritance entry into the conformance and its own availability (empty when it has the type's)

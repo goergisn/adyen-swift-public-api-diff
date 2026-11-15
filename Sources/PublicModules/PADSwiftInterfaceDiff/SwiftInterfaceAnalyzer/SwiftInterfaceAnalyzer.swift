@@ -84,7 +84,9 @@ struct SwiftInterfaceAnalyzer: SwiftInterfaceAnalyzing {
             }
 
             // ... then losening the criteria to find a comparable element
-            if let rhsChildForName = rhs.children.first(where: { $0.isDiffable(with: lhsElement) }) {
+            // (preferring the variant declared under the same `#if` conditions, see `ConditionalCompilation`)
+            let comparableElements = rhs.children.filter { $0.isDiffable(with: lhsElement) }
+            if let rhsChildForName = comparableElements.first(where: { $0.conditions == lhsElement.conditions }) ?? comparableElements.first {
                 // We found a comparable element so we check if the children changed
                 return Self.recursiveCompare(element: lhsElement, to: rhsChildForName, oldFirst: oldFirst)
             }
@@ -138,8 +140,9 @@ struct SwiftInterfaceAnalyzer: SwiftInterfaceAnalyzing {
             return candidates.first
         }
         
-        // Calculate similarity score for each candidate based on matching children
-        let candidatesWithScores = candidates.map { candidate -> (element: any SwiftInterfaceElement, score: Int) in
+        // Calculate similarity score for each candidate:
+        // same `#if` conditions first, then matching children
+        let candidatesWithScores = candidates.map { candidate -> (element: any SwiftInterfaceElement, score: [Int]) in
             let matchingChildren = lhsElement.children.filter { lhsChild in
                 candidate.children.contains { rhsChild in
                     // Check if children match by diffableSignature
@@ -147,11 +150,14 @@ struct SwiftInterfaceAnalyzer: SwiftInterfaceAnalyzing {
                     type(of: rhsChild) == type(of: lhsChild)
                 }
             }
-            return (element: candidate, score: matchingChildren.count)
+            return (element: candidate, score: [
+                candidate.conditions == lhsElement.conditions ? 1 : 0,
+                matchingChildren.count
+            ])
         }
         
         // Return the candidate with the highest score
-        // If all scores are 0 (no matching children), return the first candidate as fallback
-        return candidatesWithScores.max(by: { $0.score < $1.score })?.element
+        // If all scores are equal, return the first candidate as fallback
+        return candidatesWithScores.max(by: { $0.score.lexicographicallyPrecedes($1.score) })?.element
     }
 }

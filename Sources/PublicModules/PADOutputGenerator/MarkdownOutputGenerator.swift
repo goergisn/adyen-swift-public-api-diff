@@ -174,6 +174,10 @@ private extension MarkdownOutputGenerator {
         var lines = [title]
         changes.sorted { lhs, rhs in description(for: lhs) < description(for: rhs) }.forEach {
             lines.append("```swift")
+            if !$0.conditions.isEmpty {
+                // The `#if` clauses the element is declared in (it doesn't exist for other configurations)
+                lines.append("// Conditions: \($0.conditions.map { "#if \($0)" }.joined(separator: ", "))")
+            }
             lines.append(description(for: $0))
 
             if !$0.listOfChanges.isEmpty {

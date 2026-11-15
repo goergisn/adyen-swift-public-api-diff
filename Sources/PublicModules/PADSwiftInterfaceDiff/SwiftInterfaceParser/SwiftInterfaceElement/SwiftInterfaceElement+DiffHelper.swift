@@ -85,7 +85,14 @@ extension SwiftInterfaceElement {
 
         return availabilityChanges + old.symmetricDifference(new)
             .filter { !changedAvailability.contains(Self.conformanceName($0)) }
-            .map { "\(new.contains($0) ? "Added" : "Removed") \(propertyType) `\($0)`" }
+            .map { value in
+                let title = new.contains(value) ? "Added" : "Removed"
+                // The condition of an `#if` clause the element is declared in (see `ConditionalCompilation`)
+                if let condition = ConditionalCompilation.condition(of: value) {
+                    return "\(title) condition `#if \(condition)`"
+                }
+                return "\(title) \(propertyType) `\(value)`"
+            }
     }
 
     private static func conformanceName(_ value: String) -> String {

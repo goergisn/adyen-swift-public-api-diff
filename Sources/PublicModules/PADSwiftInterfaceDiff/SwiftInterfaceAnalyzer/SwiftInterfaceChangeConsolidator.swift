@@ -69,7 +69,9 @@ struct SwiftInterfaceChangeConsolidator: SwiftInterfaceChangeConsolidating {
                         newDescription: newDescription
                     ),
                     parentPath: match.parentPath,
-                    listOfChanges: listOfChanges
+                    listOfChanges: listOfChanges,
+                    conditions: (change.oldFirst ? change.element.allConditions + match.element.allConditions : match.element.allConditions + change.element.allConditions)
+                        .reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
                 )
             )
         }
@@ -120,7 +122,8 @@ extension IndependentSwiftInterfaceChange {
         return .init(
             changeType: changeType,
             parentPath: parentPath,
-            listOfChanges: []
+            listOfChanges: [],
+            conditions: element.allConditions
         )
     }
 

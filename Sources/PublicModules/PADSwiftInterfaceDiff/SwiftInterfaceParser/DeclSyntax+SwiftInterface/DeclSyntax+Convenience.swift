@@ -30,15 +30,28 @@ extension AttributeListSyntax {
     }
 
     /// Produces a description where all elements in the list are mapped to their `trimmedDescription`
+    ///
+    /// Attributes inside an `#if` are kept per clause together with the clause's condition
+    /// (e.g. `#if $NonexhaustiveAttribute @nonexhaustive #endif`, see ``ConditionalCompilation``)
     var sanitizedList: [String] {
-        self.compactMap {
-            var description = $0.trimmedDescription
-            if let translation = translationTable[description] {
-                description = translation
+        self.flatMap { element -> [String] in
+            guard case let .ifConfigDecl(ifConfig) = element else { return sanitized(element).map { [$0] } ?? [] }
+            return ConditionalCompilation.clauses(of: ifConfig).flatMap { clause, condition -> [String] in
+                guard case let .attributes(attributes) = clause.elements else { return [] }
+                return attributes.sanitizedList.map {
+                    ConditionalCompilation.conditionalAttribute($0.sanitizingNewlinesAndSpaces, condition: condition)
+                }
             }
-            if excludedAttributes.contains(description) { return nil }
-            return description
         }
+    }
+
+    private func sanitized(_ element: Element) -> String? {
+        var description = element.trimmedDescription
+        if let translation = translationTable[description] {
+            description = translation
+        }
+        if excludedAttributes.contains(description) { return nil }
+        return description
     }
 }
 
