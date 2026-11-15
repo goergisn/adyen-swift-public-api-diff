@@ -129,7 +129,7 @@ extension SwiftInterfaceElement {
             if let condition = ConditionalCompilation.condition(of: value) {
                 return "\(title) condition `#if \(condition)`"
             }
-            return "\(title) \(propertyType) `\(value)`"
+            return "\(title) \(propertyType) \(ConditionalCompilation.describedAttribute(value))"
         }
     }
 

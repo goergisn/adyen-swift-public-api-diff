@@ -158,13 +158,27 @@ extension ConditionalCompilation {
             .joined(separator: "\n")
     }
 
-    /// `#if $X @attribute #endif` → `#if $X`, `@attribute`, `#endif` on separate lines
+    /// `#if $X @attribute #endif` → `@attribute // #if $X`
+    ///
+    /// The attribute stays on its declaration (wrapping it in a block would read as if the declaration followed the `#endif`)
     private static func renderedConditionalAttribute(_ line: String) -> String {
-        guard line.hasPrefix(conditionPrefix), line.hasSuffix(attributeSuffix),
-              let attributeStart = line.range(of: " @") else { return line }
-        let condition = line[line.index(line.startIndex, offsetBy: conditionPrefix.count)..<attributeStart.lowerBound]
-        let attribute = line[attributeStart.upperBound...].dropLast(attributeSuffix.count)
-        return "\(conditionPrefix)\(condition)\n@\(attribute)\n#endif"
+        guard let (attribute, condition) = splitConditionalAttribute(line) else { return line }
+        return "\(attribute) // \(conditionPrefix)\(condition)"
+    }
+
+    /// Splits a conditional attribute (see ``conditionalAttribute(_:condition:)``) into the attribute and its condition
+    static func splitConditionalAttribute(_ value: String) -> (attribute: String, condition: String)? {
+        guard value.hasPrefix(conditionPrefix), value.hasSuffix(attributeSuffix),
+              let attributeStart = value.range(of: " @") else { return nil }
+        let condition = value[value.index(value.startIndex, offsetBy: conditionPrefix.count)..<attributeStart.lowerBound]
+        let attribute = value[value.index(after: attributeStart.lowerBound)...].dropLast(attributeSuffix.count)
+        return (String(attribute), String(condition))
+    }
+
+    /// An attribute for a list of changes, e.g. `` `@nonexhaustive` (`#if $NonexhaustiveAttribute`) ``
+    static func describedAttribute(_ value: String) -> String {
+        guard let (attribute, condition) = splitConditionalAttribute(value) else { return "`\(value)`" }
+        return "`\(attribute)` (`\(conditionPrefix)\(condition)`)"
     }
 
     /// Mirrors `recursiveDescription()` with the children's conditions rendered as blocks
