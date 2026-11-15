@@ -317,7 +317,7 @@ struct ConditionalCompilationTests {
 
         let change = try #require(changes.first)
         #expect(changes.count == 1, "\(changes)")
-        #expect(change.listOfChanges == ["Added attribute `#if $NonexhaustiveAttribute @nonexhaustive #endif`"])
+        #expect(change.listOfChanges == ["Added attribute `@nonexhaustive` (`#if $NonexhaustiveAttribute`)"])
         #expect(change.conditions.isEmpty)
     }
 
@@ -421,7 +421,7 @@ struct ConditionalCompilationTests {
         """))
     }
 
-    @Test func conditionalAttributeIsRenderedAsBlock() throws {
+    @Test func conditionalAttributeIsRenderedWithItsCondition() throws {
         let changes = changes(
             from: "",
             to: """
@@ -434,9 +434,7 @@ struct ConditionalCompilationTests {
 
         let change = try #require(changes.first)
         #expect(change.changeType == .addition(description: """
-        #if compiler(>=5.3) && $NonexhaustiveAttribute
-        @nonexhaustive
-        #endif
+        @nonexhaustive // #if compiler(>=5.3) && $NonexhaustiveAttribute
         public enum Kind
         """))
     }
