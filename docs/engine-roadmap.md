@@ -23,7 +23,7 @@ Priority proposal: **correctness and coverage first**, then report quality, then
 | P3 | C7 | `deinit` declarations are not parsed | coverage | new |
 | P2 | C10 | Report changes in all `#if` branches, tagged with their conditions (replaces C1's evaluation) | coverage | done, PR branch `conditional-compilation` |
 | P1 | C11 | Extension members falsely reported as removed when a type is split into `#if` variants | correctness | done, PR branch `conditional-compilation` |
-| P1 | C12 | Objective-C API is not covered (only `.swiftinterface` files are compared) | coverage | new |
+| P1 | C12 | Objective-C API is not covered: add symbol graphs as an input | coverage | new |
 | P2 | C8 | Reference tests ignore extra output lines | test correctness | new |
 | P2 | C9 | Merged standalone extensions report false additions | correctness | done, PR branch `conditional-compilation` |
 | P1 | D1 | Document the comparison behavior | docs | new |
@@ -268,24 +268,36 @@ TKErrorCodeInvalidatedDeviceKey API_AVAILABLE(macos(27.0), ios(27.0), tvos(27.0)
 
 No `.swiftinterface` changes, so no diff reports it. (It also predates 27.2, so a 27.2 → 27.3 comparison wouldn't show it either; it belongs to a 26.x → 27.x comparison.)
 
-**Proposed fix:** Add the Swift view of each module, including everything imported from Objective-C, as a second input. `swift-api-digester -dump-sdk` (part of every Xcode) produces it as JSON:
+**Proposed fix:** Read symbol graphs as a second input, generate Swift interface text from them, and run that text through the existing parser and analyzer. Objective-C API then gets exactly the same treatment and output as Swift interfaces: declaration matching, per-platform availability wording, review flags, Markdown, JSON and the HTML page.
+
+**Why symbol graphs.** `swift-symbolgraph-extract` is part of every Xcode and is what DocC builds Apple's documentation from. It describes a module the way Swift sees it, including everything imported from Objective-C:
 
 ```sh
 DEVELOPER_DIR=/Applications/Xcode-27.2.0.app/Contents/Developer \
-  xcrun --sdk iphoneos swift-api-digester -dump-sdk -module CryptoTokenKit -target arm64-apple-ios26.0 -o ctk.json
+  xcrun swift-symbolgraph-extract -module-name CryptoTokenKit -target arm64-apple-ios27.0 \
+  -sdk "$DEVELOPER_DIR/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk" \
+  -minimum-access-level public -output-dir symbolgraphs
 ```
 
-Comparing the dumps of Xcode 26.6 and Xcode 27.2 for CryptoTokenKit finds exactly the new case: `TKError.Code.invalidatedDeviceKey` (enum element) and the matching `TKError.invalidatedDeviceKey` static property.
+Per symbol it contains the full Swift declaration (`declarationFragments`, e.g. `static var invalidatedDeviceKey: TKError.Code { get }`), where it lives (`pathComponents`), its availability (introduced, deprecated, obsoleted, unavailable, message, renamed) and its parameters (`functionSignature`). Relationships (member of, conforms to, inherits from) come at the end of the file. An excerpt is in apple-sdk-api-watch: `docs/examples/symbolgraph/CryptoTokenKit.sample.symbols.json`.
 
-Two ways to integrate it, to be decided:
-- **In the engine:** convert the digester's declarations (printed name, kind, parent, availability, generic signature, conformances) into the engine's elements, so they go through the same pairing, availability wording, review flags and output as Swift declarations.
-- **In apple-sdk-api-watch:** run the digester per framework in the extraction step and diff its JSON separately, merging the records into the same report. Faster to build, but it duplicates pairing and wording logic.
+`swift-api-digester` was the first candidate but is too lossy: its own comparison prints one terse line per change, and its dump keeps attributes as bare names and availability only as "introduced" plus a deprecated flag (no messages, renames, obsoleted or unavailable platforms).
+
+**How:**
+1. **Read the JSON with SymbolKit.** Apple's Swift package [swift-docc-symbolkit](https://github.com/swiftlang/swift-docc-symbolkit) has `Codable` types for the whole symbol graph format (DocC uses it), so there's no parser to write.
+2. **Generate Swift interface text.** Join each symbol's `declarationFragments` into its declaration, nest members inside their parent type following `pathComponents` / `memberOf`, add conformances from the relationships, and turn the availability into `@available(...)` attributes. The result is an ordinary `.swiftinterface`-like file.
+3. **Feed it through the existing pipeline.** SwiftSyntax parses the generated text like any interface, so nothing after the parser changes.
 
 **Questions to settle:**
-- Deduplication: Swift overlays and imported Objective-C both describe the same module; a declaration must not be reported twice.
-- Target and platforms: the dump is per target (e.g. `arm64-apple-ios26.0`); availability comes from the headers' `API_AVAILABLE` and has to map to the same per-platform wording (A7).
-- Runtime: dumping every framework of an SDK takes noticeably longer than parsing interfaces; dumps can be cached per Xcode build.
-- Spelling: the dump uses Swift names (`TKError.Code.invalidatedDeviceKey`), which is what app code uses; the Objective-C name could be kept as extra information.
+- **Platforms:** a graph describes one target, so its availability only covers that platform. Extract per platform (iOS, macOS, tvOS, watchOS, visionOS) and merge the availability before generating `@available`.
+- **Deduplication:** a module can have both a `.swiftinterface` (its Swift overlay) and Objective-C API. Declarations in both must be reported once; symbol graphs have a stable identifier per symbol, which helps.
+- **Spelling:** the graph uses Swift names (`TKError.Code.invalidatedDeviceKey`), which is what app code uses. Objective-C-only details such as nullability show only through their effect (optional or not); the Objective-C name can be kept as extra information.
+- **Runtime:** extracting every framework per platform takes time; graphs can be cached per Xcode build.
+
+**Tests:**
+- Unit tests for the generator: symbol graph fixtures (small JSON files) → expected interface text, covering nesting, enum cases, methods with closures, conformances, availability with deprecation and rename, and merging several platforms.
+- An end-to-end test: two small graphs (old and new) → the same changes the engine reports for equivalent Swift interfaces.
+- A reference test with a small Objective-C framework in the reference packages, so the whole path from headers to report is covered.
 
 **Acceptance criteria:**
 - A 26.6 → 27.2 comparison reports `TKError.Code.invalidatedDeviceKey` as added in CryptoTokenKit, with its availability.
