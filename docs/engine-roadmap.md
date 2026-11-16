@@ -29,6 +29,7 @@ Priority proposal: **correctness and coverage first**, then report quality, then
 | P2 | R1 | Classify changes as breaking / non-breaking | report | new |
 | P2 | R2 | Summarize bulk availability changes | report | new |
 | P3 | R3 | Compare exported symbols (`.tbd`) for binary breaks | coverage (ABI) | new |
+| P2 | R4 | Show only the changed parts of a modified type (conformance blocks) | report | new |
 | P3 | F1 | Module-selector normalizer rebuilds the syntax tree | performance | new |
 | P3 | F2 | Parse old and new interface concurrently | performance | new |
 | P3 | F3 | Cache descriptions and index children in the analyzer | performance | new |
@@ -448,6 +449,22 @@ Also, `setUp` skips rebuilding the reference packages if `.build/Build` exists, 
 **Example:** The `RequestType` case dropped 3 conformance descriptors, plus `==`, `hash(into:)` and `hashValue`, from the `.tbd`.
 
 **Proposed fix:** This probably belongs in apple-sdk-api-watch rather than the engine. Diff the exported symbol lists per framework, demangle them with `swift-demangle`, and attach removed symbols to the matching declaration where possible.
+
+### R4: Show only the changed parts of a modified type (P2)
+
+**Problem:** Since A6, conformances with their own availability are rendered as `extension Type: Protocol` blocks after the type, the way the interface declares them. They are part of the type's description, so the before and after of a modified type contain every such block, changed or not. In the Markdown output each block is printed twice (under "From" and "To"), and the JSON carries the same text.
+
+**Example (27.2 → 27.3):** AppIntents `AppSchema.Intent` declares about 20 conformances with their own availability. The only change is the added `VideoIntent` conformance, but the record's before and after contain about 100 lines each, with the change in the middle. The HTML prototype works around this by folding unchanged blocks, but the engine knows exactly which conformances changed and can do this precisely for every output.
+
+**Proposed fix:** For a modification, the before and after descriptions contain the type's own declaration plus only the conformance blocks that differ: added, removed, or with changed availability. Unchanged conformance blocks are left out in all outputs (Markdown and JSON) and replaced by one comment line, e.g. `// 18 unchanged conformances`. Additions and removals keep their full text, since there everything is new or gone.
+
+- In the consolidator, where the modification's descriptions are rendered, compare the conformance lists of the old and new element and render only the differing `extension` blocks (`conformanceExtensionsDescription` with a filter).
+- The same applies to other parts of a description that are carried along unchanged, if more show up. Conformance blocks are the only case seen in the SDKs so far.
+
+**Acceptance criteria:**
+- `AppSchema.Intent` in 27.2 → 27.3 is reported as the struct declaration, `// 19 unchanged conformances` (or the actual count) and the added `VideoIntent` block, in both the Markdown and the JSON.
+- The list of changes ("Added inheritance … (available on iOS 27.3, …)") is unchanged.
+- Unit tests cover a type with changed and unchanged conformance blocks; the reference output is updated where it contains such types.
 
 ---
 
