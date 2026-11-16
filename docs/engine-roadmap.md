@@ -23,6 +23,7 @@ Priority proposal: **correctness and coverage first**, then report quality, then
 | P3 | C7 | `deinit` declarations are not parsed | coverage | new |
 | P2 | C10 | Report changes in all `#if` branches, tagged with their conditions (replaces C1's evaluation) | coverage | done, PR branch `conditional-compilation` |
 | P1 | C11 | Extension members falsely reported as removed when a type is split into `#if` variants | correctness | done, PR branch `conditional-compilation` |
+| P1 | C12 | Objective-C API is not covered (only `.swiftinterface` files are compared) | coverage | new |
 | P2 | C8 | Reference tests ignore extra output lines | test correctness | new |
 | P2 | C9 | Merged standalone extensions report false additions | correctness | done, PR branch `conditional-compilation` |
 | P1 | D1 | Document the comparison behavior | docs | new |
@@ -254,6 +255,42 @@ C1's real finding (`Primary`/`Secondary` lost `Swift.Sendable`) is still reporte
   - **SwiftUICore:** the record count is unchanged. The `#else` variants of `ArrangementViewStyleConfiguration.Primary`/`.Secondary` now report "Removed inheritance `Swift.Sendable`" too. That extension is unconditional, so it applies to both variants; before, only the `#if` variant showed it.
   - **FoundationModels:** 32 more records. Extension members of the enums declared with and without `@nonexhaustive` (`$NonexhaustiveAttribute`) now exist in both variants, so each "Availability added: tvOS 27.0" is reported per variant: 44 records under each condition, all exact twins.
 - **Decision:** twins stay separate records. Each `#if` branch is its own code, so a change in each branch is a separate change.
+
+### C12: Objective-C API is not covered (P1)
+
+**Problem:** The comparison only reads `.swiftinterface` files. Most of the iOS SDK is declared in Objective-C headers and imported into Swift by the compiler, so none of it shows up in a diff. Many frameworks ship only a small Swift overlay: CryptoTokenKit's `.swiftinterface` has 32 lines and doesn't contain `TKError` at all.
+
+**Example (the reason this project started):** `TKError.Code.invalidatedDeviceKey` was added in iOS 27.0. It's declared in `CryptoTokenKit.framework/Headers/TKError.h`:
+
+```objc
+TKErrorCodeInvalidatedDeviceKey API_AVAILABLE(macos(27.0), ios(27.0), tvos(27.0), watchos(27.0), visionos(27.0)) = -10,
+```
+
+No `.swiftinterface` changes, so no diff reports it. (It also predates 27.2, so a 27.2 → 27.3 comparison wouldn't show it either; it belongs to a 26.x → 27.x comparison.)
+
+**Proposed fix:** Add the Swift view of each module, including everything imported from Objective-C, as a second input. `swift-api-digester -dump-sdk` (part of every Xcode) produces it as JSON:
+
+```sh
+DEVELOPER_DIR=/Applications/Xcode-27.2.0.app/Contents/Developer \
+  xcrun --sdk iphoneos swift-api-digester -dump-sdk -module CryptoTokenKit -target arm64-apple-ios26.0 -o ctk.json
+```
+
+Comparing the dumps of Xcode 26.6 and Xcode 27.2 for CryptoTokenKit finds exactly the new case: `TKError.Code.invalidatedDeviceKey` (enum element) and the matching `TKError.invalidatedDeviceKey` static property.
+
+Two ways to integrate it, to be decided:
+- **In the engine:** convert the digester's declarations (printed name, kind, parent, availability, generic signature, conformances) into the engine's elements, so they go through the same pairing, availability wording, review flags and output as Swift declarations.
+- **In apple-sdk-api-watch:** run the digester per framework in the extraction step and diff its JSON separately, merging the records into the same report. Faster to build, but it duplicates pairing and wording logic.
+
+**Questions to settle:**
+- Deduplication: Swift overlays and imported Objective-C both describe the same module; a declaration must not be reported twice.
+- Target and platforms: the dump is per target (e.g. `arm64-apple-ios26.0`); availability comes from the headers' `API_AVAILABLE` and has to map to the same per-platform wording (A7).
+- Runtime: dumping every framework of an SDK takes noticeably longer than parsing interfaces; dumps can be cached per Xcode build.
+- Spelling: the dump uses Swift names (`TKError.Code.invalidatedDeviceKey`), which is what app code uses; the Objective-C name could be kept as extra information.
+
+**Acceptance criteria:**
+- A 26.6 → 27.2 comparison reports `TKError.Code.invalidatedDeviceKey` as added in CryptoTokenKit, with its availability.
+- Declarations that exist in both the `.swiftinterface` and the imported Objective-C are reported once.
+- The report says which source a change came from (Swift interface or Objective-C header), at least in the JSON.
 
 ### C2: Macro declarations are not parsed (P1)
 
