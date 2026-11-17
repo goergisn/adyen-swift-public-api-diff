@@ -31,6 +31,7 @@ Priority proposal: **correctness and coverage first**, then report quality, then
 | P2 | R2 | Summarize bulk availability changes | report | new |
 | P3 | R3 | Compare exported symbols (`.tbd`) for binary breaks | coverage (ABI) | new |
 | P2 | R4 | Show only the changed parts of a modified type (conformance blocks) | report | new |
+| P1 | R5 | JSON output format (`--format json`) | report | new, spec in [json-output.md](json-output.md) |
 | P3 | F1 | Module-selector normalizer rebuilds the syntax tree | performance | new |
 | P3 | F2 | Parse old and new interface concurrently | performance | new |
 | P3 | F3 | Cache descriptions and index children in the analyzer | performance | new |
@@ -514,6 +515,14 @@ Also, `setUp` skips rebuilding the reference packages if `.build/Build` exists, 
 - `AppSchema.Intent` in 27.2 → 27.3 is reported as the struct declaration, `// 19 unchanged conformances` (or the actual count) and the added `VideoIntent` block, in both the Markdown and the JSON.
 - The list of changes ("Added inheritance … (available on iOS 27.3, …)") is unchanged.
 - Unit tests cover a type with changed and unchanged conformance blocks; the reference output is updated where it contains such types.
+
+### R5: JSON output format (P1)
+
+**Problem:** The tool only writes Markdown. Tools that build on the results (the apple-sdk-api-watch review site, a Mac app, CI checks) have to parse Markdown or link the library and write their own JSON encoder, as apple-sdk-api-watch does today.
+
+**Proposed fix:** A `--format <markdown|json>` option on every subcommand, defaulting to `markdown`. The JSON is a versioned, documented document with one record per change (`kind`, `parentPath`, `before`, `after`, `details`, `conditions`), deterministic ordering, clean stdout and a non-zero exit on errors. R1 and R2 can later add fields to it.
+
+**Spec:** [json-output.md](json-output.md) (format, implementation steps, tests, acceptance criteria).
 
 ---
 
