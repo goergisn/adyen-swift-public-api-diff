@@ -92,6 +92,14 @@ Optional, larger: let the job pass `api_scope: public` and check `api_comparison
 
 ---
 
+## 4. README: how to get reliable results
+
+Add a short section to the README, e.g. "Getting reliable results", next to the new "API Scope" section (or under "Usage"), and link it from the `swift-interface` and `framework` usage sections, where users bring their own files:
+
+- **Generate both interfaces fresh, with the same Xcode and the same build settings.** Don't reuse `.swiftinterface` files from an earlier build, a different machine or another Xcode version. Newer compilers print interfaces differently and add new language features (attributes, module selectors like `Swift::String`, feature checks in `#if`), which shows up as changes that aren't API changes. The `project` command and the GitHub Action already do this: they build old and new in one run.
+- **Build with library evolution** (`BUILD_LIBRARY_FOR_DISTRIBUTION = YES`, which the `project` command sets). Interfaces built without it contain private and internal storage and compiler details (`@_hasStorage`, `@_hasInitialValue`, generated `__derived_enum_equals`). If library evolution isn't possible (e.g. a dependency that doesn't support it), use `--api-scope public` and expect some remaining noise.
+- **Compare the same interface type** on both sides (`.swiftinterface` with `.swiftinterface`, `.private.swiftinterface` with `.private.swiftinterface`).
+
 ## Smaller notes for the PR description
 
 - The PR also changes how resource paths are made relative (`SwiftPackageFileAnalyzer+Targets.swift`, commit "showing correct path for resources"). It's unrelated to access levels; mention it in the description or move it to its own PR.
@@ -105,3 +113,4 @@ Optional, larger: let the job pass `api_scope: public` and check `api_comparison
 - [ ] `CommandLineArgumentTests` cover all argument mappings and the three commands' parsing.
 - [ ] A check (3b) fails when a CLI option is neither passed by the Action nor allowlisted.
 - [ ] `test-action.yml` runs on changes to the CLI sources.
+- [ ] The README explains how to get reliable results: fresh interfaces from the same Xcode and settings, library evolution, same interface type.
