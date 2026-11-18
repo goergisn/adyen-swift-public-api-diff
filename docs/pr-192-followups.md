@@ -95,7 +95,7 @@ Optional, larger: let the job pass `api_scope: public` and check `api_comparison
 ## Smaller notes for the PR description
 
 - The PR also changes how resource paths are made relative (`SwiftPackageFileAnalyzer+Targets.swift`, commit "showing correct path for resources"). It's unrelated to access levels; mention it in the description or move it to its own PR.
-- Interfaces built without library evolution have more noise that `--api-scope` doesn't remove: `@_hasStorage` / `@_hasInitialValue` attributes and the generated `__derived_enum_equals` method in `Equatable` enums. If a project switches library evolution on or off between versions, every stored property shows up as modified. Possible follow-up issue: ignore these compiler-generated attributes and members.
+- Interfaces built without library evolution contain compiler-generated details that `--api-scope` doesn't remove: `@_hasStorage` / `@_hasInitialValue` attributes and the generated `__derived_enum_equals` method in `Equatable` enums. They show up in the text of added and removed declarations. Low priority: old and new are built in the same run with the same Xcode and settings, so they don't cause false modifications. Comparing interfaces built by different Xcode versions or with different settings is out of scope for the tool.
 - `xcodebuild` warns "module interfaces are only supported with -enable-library-evolution" in this setup. The tool could pass that warning into the report's warnings, so users know why `--api-scope` matters for them.
 
 ## Done when
